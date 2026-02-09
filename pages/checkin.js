@@ -16,35 +16,44 @@ export default function Checkin() {
     const loadUserData = async () => {
       // 检查用户是否已填写信息
       const userData = storage.getUserInfo()
-      if (!userData) {
+      if (!userData || !userData.emergencyEmail) {
         router.push('/')
         return
       }
 
       setUserInfo(userData)
       
-      // 如果有用户ID，从云端获取数据
-      if (userData.userId) {
-        try {
-          const checkedIn = await supabaseStorage.hasCheckedInToday(userData.userId)
-          const records = await supabaseStorage.getCheckinRecords(userData.userId)
-          const consecutive = await supabaseStorage.getConsecutiveDays(userData.userId)
-          
-          setHasCheckedInToday(checkedIn)
-          setTotalDays(records.length)
-          setConsecutiveDays(consecutive)
-        } catch (error) {
-          console.error('Error loading cloud data:', error)
-          // 如果云端失败，使用本地数据
-          const checkedIn = storage.hasCheckedInToday()
-          const consecutive = storage.getConsecutiveDays()
-          const total = storage.getCheckinRecords().length
-          setHasCheckedInToday(checkedIn)
-          setConsecutiveDays(consecutive)
-          setTotalDays(total)
+      // 使用邮箱作为唯一标识符，确保用户存在
+      try {
+        let user = await supabaseStorage.getUserByEmail(userData.emergencyEmail)
+        
+        if (!user) {
+          // 创建新用户
+          user = await supabaseStorage.createUser({
+            nickname: userData.nickname,
+            emergencyEmail: userData.emergencyEmail
+          })
         }
-      } else {
-        // 使用本地数据
+        
+        // 更新本地存储的用户ID
+        storage.setUserInfo({
+          nickname: user.nickname,
+          emergencyEmail: user.emergency_email,
+          userId: user.id
+        })
+        
+        // 获取签到数据
+        const checkedIn = await supabaseStorage.hasCheckedInToday(user.id)
+        const records = await supabaseStorage.getCheckinRecords(user.id)
+        const consecutive = await supabaseStorage.getConsecutiveDays(user.id)
+        
+        setHasCheckedInToday(checkedIn)
+        setTotalDays(records.length)
+        setConsecutiveDays(consecutive)
+        
+      } catch (error) {
+        console.error('Error loading data:', error)
+        // 网络错误时使用本地数据
         const checkedIn = storage.hasCheckedInToday()
         const consecutive = storage.getConsecutiveDays()
         const total = storage.getCheckinRecords().length

@@ -10,9 +10,9 @@ export default function UserInfo() {
   const router = useRouter()
 
   useEffect(() => {
-    // 如果用户已经填写过信息，直接跳转到签到页面
+    // 简化检查：只要有邮箱就跳转到签到页
     const userInfo = storage.getUserInfo()
-    if (userInfo) {
+    if (userInfo && userInfo.emergencyEmail) {
       router.push('/checkin')
     }
   }, [router])
@@ -40,22 +40,21 @@ export default function UserInfo() {
     setIsLoading(true)
 
     try {
-      // 保存到本地存储（作为备份）
+      // 先检查用户是否已存在
+      let user = await supabaseStorage.getUserByEmail(emergencyEmail.trim())
+      
+      if (!user) {
+        // 创建新用户
+        user = await supabaseStorage.createUser({
+          nickname: nickname.trim(),
+          emergencyEmail: emergencyEmail.trim()
+        })
+      }
+
+      // 保存用户信息到本地存储
       storage.setUserInfo({
         nickname: nickname.trim(),
         emergencyEmail: emergencyEmail.trim(),
-        createdAt: new Date().toISOString()
-      })
-
-      // 同步到 Supabase 云端
-      const user = await supabaseStorage.createUser({
-        nickname: nickname.trim(),
-        emergencyEmail: emergencyEmail.trim()
-      })
-
-      // 保存用户ID到本地存储
-      storage.setUserInfo({
-        ...storage.getUserInfo(),
         userId: user.id
       })
 
